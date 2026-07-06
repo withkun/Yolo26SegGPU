@@ -1,8 +1,9 @@
-#ifndef __INC_FORMAT_LOGGER_H
-#define __INC_FORMAT_LOGGER_H
+#ifndef __INC_FORMATTER_CV_H
+#define __INC_FORMATTER_CV_H
 
 #include "spdlog/spdlog.h"
 #include "opencv2/opencv.hpp"
+
 
 namespace std {
 template<>
@@ -13,22 +14,20 @@ struct formatter<cv::Mat> : std::formatter<std::string> {
     }
 };
 
+template<>
+struct formatter<cv::Range> : std::formatter<std::string> {
+    auto format(cv::Range const &val, std::format_context &ctx) const -> decltype(ctx.out()) {
+        std::stringstream ss;
+        ss << "[" << val.start << ", " << val.end << "]";
+        return std::formatter<std::string>::format(ss.str(), ctx);
+    }
+};
+
 template<typename T>
 struct formatter<cv::Rect_<T>> : std::formatter<std::string> {
     auto format(cv::Rect_<T> const &val, std::format_context &ctx) const -> decltype(ctx.out()) {
         std::stringstream ss;
         ss << "[" << val.x << ", " << val.y << ", " << val.width << ", " << val.height << "]";
-        return std::formatter<std::string>::format(ss.str(), ctx);
-    }
-};
-
-template<>
-struct formatter<cv::Range> : std::formatter<std::string> {
-    formatter<int> formatter_;
-    template <typename FormatContext>
-    auto format(cv::Range const &val, std::format_context &ctx) const -> decltype(ctx.out()) {
-        std::stringstream ss;
-        ss << "[" << val.start << ", " << val.end << "]";
         return std::formatter<std::string>::format(ss.str(), ctx);
     }
 };
@@ -52,19 +51,32 @@ struct formatter<cv::Size_<T>> : std::formatter<std::string> {
 };
 
 template<>
-struct formatter<cv::Size2i> : std::formatter<std::string> {
-    auto format(const cv::Size2i &val, std::format_context &ctx) const -> decltype(ctx.out()) {
-        const auto str = std::format("[{}, {}]", val.height, val.width);
-        return std::formatter<std::string>::format(str, ctx);
+struct formatter<cv::MatShape> : std::formatter<std::string> {
+    auto format(const cv::MatShape &val, std::format_context &ctx) const -> decltype(ctx.out()) {
+        std::stringstream ss;
+        //const cv::Size size = val();
+        //ss << "[" << size.height << ", " << size.width << "]";
+        ss << "[";
+        for (auto i = 0; i < val.size(); ++i) {
+            if (i != 0) { ss << ", "; }
+            ss << val[i];
+        }
+        ss << "]";
+        return std::formatter<std::string>::format(ss.str(), ctx);
     }
 };
 
 template<>
-struct formatter<cv::MatSize> : std::formatter<std::string> {
-    auto format(const cv::MatSize &val, std::format_context &ctx) const -> decltype(ctx.out()) {
+struct formatter<cv::MatStep> : std::formatter<std::string> {
+    auto format(const cv::MatStep &val, std::format_context &ctx) const -> decltype(ctx.out()) {
         std::stringstream ss;
-        const cv::Size size = val();
-        ss << "[" << size.height << ", " << size.width << "]";
+        ss << "[";
+        for (auto i = 0; i < cv::MatShape::MAX_DIMS; ++i) {
+            if (val[i] == 0) { break; }
+            if (i != 0) { ss << ", "; }
+            ss << val[i];
+        }
+        ss << "]";
         return std::formatter<std::string>::format(ss.str(), ctx);
     }
 };
@@ -74,6 +86,7 @@ struct formatter<std::vector<T>> : std::formatter<std::string> {
     auto format(const std::vector<T> &val, std::format_context &ctx) const -> decltype(ctx.out()) {
         std::stringstream ss;
         ss << "[";
+        ss << std::setprecision(3) << std::fixed;
         for (size_t i = 0; i < val.size(); ++i) {
             if (i != 0) { ss << ", "; }
             ss << val[i];
@@ -83,4 +96,4 @@ struct formatter<std::vector<T>> : std::formatter<std::string> {
     }
 };
 } //namespace std
-#endif //__INC_FORMAT_LOGGER_H
+#endif //__INC_FORMATTER_CV_H

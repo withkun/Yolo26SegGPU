@@ -18,6 +18,7 @@ set(CMAKE_CUDA_STANDARD 20)
 add_library(${PROJECT_NAME} STATIC
     segment.h
     segment.cu
+    cuda_nms.cu
     cuda_gemv.cu
     cuda_upscale.cu
 )

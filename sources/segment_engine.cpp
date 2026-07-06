@@ -18,7 +18,7 @@ SegmentEngine::SegmentEngine() {
     }
 
     // 得到优化后的序列化模型后, 还需要创建一个IRuntime接口的实例, 然后通过其模型反序列化接口去创建一个ICudaEngine对象:
-    runtime_ = nvinfer1::createInferRuntime(NvLogger::GetInstance());
+    runtime_ = std::unique_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(NvLogger::GetInstance()));
     if (runtime_ == nullptr) {
         SPDLOG_ERROR("TensorRT createInferRuntime failed.");
     }
@@ -26,8 +26,8 @@ SegmentEngine::SegmentEngine() {
 
 SegmentEngine::~SegmentEngine() {
     contexts_.clear();
-    delete engine_;
-    delete runtime_;
+    engine_.reset();
+    runtime_.reset();
 }
 
 bool SegmentEngine::get_engine(const std::string &model_file, const std::map<std::string, std::vector<nvinfer1::Dims>> &dimensions) {
@@ -100,7 +100,7 @@ bool SegmentEngine::load_network_onnx(const std::string &model_file, const std::
     //经过优化后的序列化模型被保存到IHostMemory对象中, 可以将其保存到磁盘, 下次使用时直接加载这个经过优化的模型即可, 这样可以省去等待模型优化的过程.
     SPDLOG_INFO("TensorRT Building an engine from file {}; this may take a while...", model_file);
     const auto *serialized_model = builder->buildSerializedNetwork(*network, *config);
-    engine_ = runtime_->deserializeCudaEngine(serialized_model->data(), serialized_model->size());
+    engine_ = std::unique_ptr<nvinfer1::ICudaEngine>(runtime_->deserializeCudaEngine(serialized_model->data(), serialized_model->size()));
     const auto stage4 = std::chrono::system_clock::now();
     SPDLOG_INFO("TensorRT build CUDA engine success, usage: {}μs", std::chrono::duration_cast<std::chrono::microseconds>(stage4 - stage3).count());
 
@@ -132,7 +132,7 @@ bool SegmentEngine::load_network_engine(const std::string &engine_file) {
     in_file.seekg(0, std::ios::beg);
     auto *serialized_model = new char[model_size];
     in_file.read(serialized_model, model_size);
-    engine_ = runtime_->deserializeCudaEngine(serialized_model, model_size);
+    engine_ = std::unique_ptr<nvinfer1::ICudaEngine>(runtime_->deserializeCudaEngine(serialized_model, model_size));
     delete [] serialized_model;
     if (!engine_) {
         SPDLOG_INFO("TensorRT deserializeCudaEngine failed: {}", engine_file);
@@ -189,7 +189,7 @@ void SegmentEngine::get_model_dimensions() {
 void SegmentEngine::create_context(const nvinfer1::Dims &dims) {
     //SegmentContext ctx(engine_, dims);
     //ctx.create_context(engine_, dims);
-    contexts_[dims] = std::move(SegmentContext(engine_, dims));
+    contexts_[dims] = std::move(SegmentContext(engine_.get(), dims));
 }
 
 DetectResults SegmentEngine::RunSync(const nvinfer1::Dims &kDims, const cv::Mat &image) {

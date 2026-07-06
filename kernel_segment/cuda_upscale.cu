@@ -37,11 +37,11 @@ __device__ float bilinear_interpolate(const float *masks, const int32_t H, const
 
 // CUDA核函数: 对每个掩膜应用二值化阈值, 并与边界框对齐裁剪
 __global__ void cudaCropAndUpscale(const float *proposals,          // (1, 960, 38)
+                                   const int32_t *d_keep_index,     // [960]
                                    const float *proto_masks,        // (960, 304, 480)
                                    uint8_t *final_masks,            // (960, 304, 480)
                                    const int32_t final_steps,       // 304 × 480
                                    const int32_t ideal_width,       // 304 × 480
-                                   const float conf_threshold,      // 0.25f
                                    const float mask_threshold,      // 0.35f
                                    const int32_t image_h, const int32_t image_w,    // 1200 × 1920
                                    const int32_t proto_h, const int32_t proto_w,    // 304 × 480
@@ -52,7 +52,7 @@ __global__ void cudaCropAndUpscale(const float *proposals,          // (1, 960, 
     if (row >= M) {
         return;
     }
-    if (proposals[row * PROBES_W + 4] < conf_threshold) {
+    if (d_keep_index[row] != 1) {
         return;
     }
 
@@ -133,6 +133,7 @@ __global__ void cudaCropAndUpscale(const float *proposals,          // (1, 960, 
 /**
  * @brief YOLO26实例分割高分辨率掩码采样启动函数
  * @param d_proposals [960, 38] 格式: bbox(4), score(1), class(1), coef(32)
+ * @param d_keep_index
  * @param d_proto_masks [960, H×W] 输出掩码
  * @param d_final_masks [960, final_steps] 输出掩码
  * @param final_steps  输出掩码步长, 最大边界框像素数
@@ -148,16 +149,15 @@ __global__ void cudaCropAndUpscale(const float *proposals,          // (1, 960, 
  * @param M 固定为 960, num of proposals
  * @param N 固定为 proto_h × proto_w = 145920
  */
-void launchScale(const float *d_proposals, const float *d_proto_masks, uint8_t *d_final_masks,
-                 const int32_t final_steps, const int32_t ideal_width, const float conf_threshold, const float mask_threshold,
+void launchScale(const float *d_proposals, const int32_t *d_keep_index, const float *d_proto_masks, uint8_t *d_final_masks,
+                 const int32_t final_steps, const int32_t ideal_width, const float mask_threshold,
                  const int32_t image_h, const int32_t image_w, const int32_t proto_h, const int32_t proto_w,
                  const float scale_xy, const float sampling, const int32_t M, const int32_t N) {
     // 边界框裁剪 + 上采样 + 二值化
     int32_t gridSize = M;       // 960个数据块
     int32_t blockDim = 512;     // 单块并行线程
-    cudaCropAndUpscale<<<gridSize, blockDim>>>(d_proposals, d_proto_masks, d_final_masks, final_steps, ideal_width,
-                                               conf_threshold, mask_threshold, image_h, image_w, proto_h, proto_w,
-                                               scale_xy, sampling, M, N);
+    cudaCropAndUpscale<<<gridSize, blockDim>>>(d_proposals, d_keep_index, d_proto_masks, d_final_masks, final_steps, ideal_width,
+                                               mask_threshold, image_h, image_w, proto_h, proto_w, scale_xy, sampling, M, N);
 
     cudaDeviceSynchronize();
 }

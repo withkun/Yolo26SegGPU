@@ -2,12 +2,11 @@
 #define __INC_MEDIA_READER_H
 
 #include <generator>
-#include <filesystem>
 #include "opencv2/opencv.hpp"
 
 
 // 递归展开通配符路径，返回所有匹配文件
-std::vector<std::string> expandGlob(const std::string &pattern);
+std::vector<std::string> expandGlob(const std::string &root_pattern);
 
 // 统一的数据包结构
 struct FrameData {

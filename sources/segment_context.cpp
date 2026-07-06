@@ -19,53 +19,55 @@ SegmentContext::SegmentContext(SegmentContext &&rsh) noexcept {
 }
 
 SegmentContext &SegmentContext::operator=(SegmentContext &&rsh) noexcept {
-    this->stream_           = rsh.stream_;
-    this->context_          = std::move(rsh.context_);
+    this->stream_               = rsh.stream_;
+    this->context_              = std::move(rsh.context_);
 
-    this->input_dims_       = rsh.input_dims_;
-    this->probe_dims_       = rsh.probe_dims_;
-    this->proto_dims_       = rsh.proto_dims_;
+    this->input_dims_           = rsh.input_dims_;
+    this->probe_dims_           = rsh.probe_dims_;
+    this->proto_dims_           = rsh.proto_dims_;
 
-    this->d_image_          = rsh.d_image_;
-    this->d_proposals_      = rsh.d_proposals_;
-    this->d_prototypes_     = rsh.d_prototypes_;
-    this->h_image_          = rsh.h_image_;
-    this->h_proposals_      = rsh.h_proposals_;
-    this->h_prototypes_     = rsh.h_prototypes_;
-    this->results_          = rsh.results_;
+    this->d_image_              = rsh.d_image_;
+    this->d_proposals_          = rsh.d_proposals_;
+    this->d_prototypes_         = rsh.d_prototypes_;
+    this->h_image_              = rsh.h_image_;
+    this->h_proposals_          = rsh.h_proposals_;
+    this->h_prototypes_         = rsh.h_prototypes_;
+    this->results_              = rsh.results_;
 
     // Input Tensor:            nvinfer1::Dims{nbDims=4, d={1, 1, 1024, 1024, 0, 0, 0, 0}}
-    this->INPUT_N_          = rsh.INPUT_N_;
-    this->INPUT_C_          = rsh.INPUT_C_;
-    this->INPUT_H_          = rsh.INPUT_H_;
-    this->INPUT_W_          = rsh.INPUT_W_;
+    this->INPUT_N_              = rsh.INPUT_N_;
+    this->INPUT_C_              = rsh.INPUT_C_;
+    this->INPUT_H_              = rsh.INPUT_H_;
+    this->INPUT_W_              = rsh.INPUT_W_;
     // Proposals Tensor:        nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}}
-    this->PROBE_N_          = rsh.PROBE_N_;
-    this->PROBE_H_          = rsh.PROBE_H_;
-    this->PROBE_W_          = rsh.PROBE_W_;
+    this->PROBE_N_              = rsh.PROBE_N_;
+    this->PROBE_H_              = rsh.PROBE_H_;
+    this->PROBE_W_              = rsh.PROBE_W_;
     // Prototypes Tensor:       nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}}
-    this->PROTO_N_          = rsh.PROTO_N_;
-    this->PROTO_C_          = rsh.PROTO_C_;
-    this->PROTO_H_          = rsh.PROTO_H_;
-    this->PROTO_W_          = rsh.PROTO_W_;
+    this->PROTO_N_              = rsh.PROTO_N_;
+    this->PROTO_C_              = rsh.PROTO_C_;
+    this->PROTO_H_              = rsh.PROTO_H_;
+    this->PROTO_W_              = rsh.PROTO_W_;
 
-    this->INPUT_SIZE_       = rsh.INPUT_SIZE_;
-    this->PROBE_SIZE_       = rsh.PROBE_SIZE_;
-    this->PROTO_SIZE_       = rsh.PROTO_SIZE_;
+    this->INPUT_SIZE_           = rsh.INPUT_SIZE_;
+    this->PROBE_SIZE_           = rsh.PROBE_SIZE_;
+    this->PROTO_SIZE_           = rsh.PROTO_SIZE_;
 
-    this->image_h_          = rsh.image_h_;
-    this->image_w_          = rsh.image_w_;
-    this->padded_x_         = rsh.padded_x_;
-    this->padded_y_         = rsh.padded_y_;
-    this->scale_xy_         = rsh.scale_xy_;
-    this->sampling_         = rsh.sampling_;
+    this->image_h_              = rsh.image_h_;
+    this->image_w_              = rsh.image_w_;
+    this->padded_x_             = rsh.padded_x_;
+    this->padded_y_             = rsh.padded_y_;
+    this->scale_xy_             = rsh.scale_xy_;
 
     // GPU解码相关
-    this->d_proto_masks_    = rsh.d_proto_masks_;
-    this->d_final_masks_    = rsh.d_final_masks_;
-    this->h_final_masks_    = rsh.h_final_masks_;
-    this->final_steps_      = rsh.final_steps_;
-    this->ideal_width_      = rsh.ideal_width_;
+    this->sampling_             = rsh.sampling_;
+    this->h_keep_index_         = rsh.h_keep_index_;
+    this->d_keep_index_         = rsh.d_keep_index_;
+    this->d_proto_masks_        = rsh.d_proto_masks_;
+    this->d_final_masks_        = rsh.d_final_masks_;
+    this->h_final_masks_        = rsh.h_final_masks_;
+    this->final_steps_          = rsh.final_steps_;
+    this->ideal_width_          = rsh.ideal_width_;
 
     rsh.stream_ = nullptr;
     return *this;
@@ -124,6 +126,8 @@ void SegmentContext::create_context(nvinfer1::ICudaEngine *engine, const nvinfer
 
     // GPU解码相关内存
     sampling_ = static_cast<float>(PROTO_W_) / static_cast<float>(INPUT_W_);        // 下采样比例: 0.25
+    h_keep_index_.resize(PROBE_H_);                                                 // [960] 有效索引标记
+    cudaMalloc(&d_keep_index_, PROBE_H_ * sizeof(int32_t));                         // [960] 有效索引标记
     cudaMalloc(&d_proto_masks_, PROBE_H_ * PROTO_H_ * PROTO_W_ * sizeof(float));    // [960, 304*480]    534M 低分辨率掩膜, 需要单独分配
     if (d_proto_masks_ == nullptr) {
         std::cerr << "cudaMalloc d_proto_masks is null" << std::endl;
@@ -154,6 +158,7 @@ void SegmentContext::destroy_context() {
     cudaFree(d_image_);
     cudaFree(d_proposals_);
     cudaFree(d_prototypes_);
+    cudaFree(d_keep_index_);
     cudaFree(d_proto_masks_);
     cudaFree(d_final_masks_);
 
@@ -167,7 +172,7 @@ DetectResults SegmentContext::RunSync(const cv::Mat &image) {
 
     inference();
 
-    postprocess(image, CONF_THRESHOLD, MASK_THRESHOLD);
+    postprocess(image, IOU_THRESHOLD, CONF_THRESHOLD, MASK_THRESHOLD);
 
     return results_;
 }
@@ -228,7 +233,7 @@ void SegmentContext::inference() {
     SPDLOG_INFO("TensorRT inference leave");
 }
 
-void SegmentContext::postprocess(const cv::Mat &image, const float conf_threshold, const float mask_threshold) {
+void SegmentContext::postprocess(const cv::Mat &image, const float iou_threshold, const float conf_threshold, const float mask_threshold) {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // YOLO26模型输出:
     // output0输出为预测结果张量, 其维度是(1,960,38)  NHW: (x1,y1,x2,y2, score, class_id, mask1,mask2,...,mask32)
@@ -248,8 +253,8 @@ void SegmentContext::postprocess(const cv::Mat &image, const float conf_threshol
 
     // 注意: 送入模型的推理图像没有缩放, 只有补边, 如果有缩放下面实现需要调整.
     int64_t usage1, usage2, usage3;
-    cudaPostprocess(d_proposals_, d_prototypes_, d_proto_masks_, d_final_masks_, h_final_masks_.data(), final_steps_, ideal_width_,
-                    conf_threshold, mask_threshold, image_h_, image_w_, PROTO_H_, PROTO_W_, scale_xy_, sampling_, PROBE_H_, PROBE_W_, COEFFS_W,
+    cudaPostprocess(d_proposals_, d_prototypes_, d_keep_index_, h_keep_index_.data(), d_proto_masks_, d_final_masks_, h_final_masks_.data(), final_steps_, ideal_width_,
+                    iou_threshold, conf_threshold, mask_threshold, image_h_, image_w_, PROTO_H_, PROTO_W_, scale_xy_, sampling_, PROBE_H_, PROBE_W_, COEFFS_W,
                     usage1, usage2, usage3);
     SPDLOG_INFO(std::format("TensorRT probe usage: gemv={}μs scale:{}μs copy:{}μs", usage1, usage2, usage3));
 
@@ -259,7 +264,7 @@ void SegmentContext::postprocess(const cv::Mat &image, const float conf_threshol
     // 根据置信度过滤(Proposals Tensor)
     const float *proposals = h_proposals_.data();
     for (int32_t row = 0; row < PROBE_H_; ++row) {
-        if (proposals[row * PROBE_W_ + 4] < conf_threshold) {
+        if (h_keep_index_[row] != 1) {
             continue;
         }
 

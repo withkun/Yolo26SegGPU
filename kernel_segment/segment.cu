@@ -8,11 +8,14 @@
  * @brief YOLO26实例分割后处理函数
  * @param d_proposals [960, 38] 格式: bbox(4), score(1), class(1), coef(32)
  * @param d_prototypes [32, H×W] 原型基矩阵
+ * @param d_keep_index [960] 输出有效索引
+ * @param h_keep_index [960] 输出有效索引
  * @param d_proto_masks [960, H×W] 输出掩码
  * @param d_final_masks [960, final_steps] 输出掩码
  * @param h_final_masks [960, final_steps] 输出掩码
  * @param final_steps  输出掩码步长, 最大边界框像素数
  * @param ideal_width  输出掩码步长, 最大边界框像素数
+ * @param iou_threshold 交并比阈值, 低于此值的框将被抑制
  * @param conf_threshold 置信度阈值, 低于此值的框将被忽略
  * @param mask_threshold 二值化阈值, 低于此值的掩码被置零
  * @param image_h 原始图像高度 1200
@@ -25,8 +28,8 @@
  * @param P 固定为(PROBES_W_): 38, len of proposal
  * @param K 固定为32, len of coefficient
  */
-void cudaPostprocess(const float *d_proposals, const float *d_prototypes, float *d_proto_masks, uint8_t *d_final_masks, uint8_t *h_final_masks, const int32_t final_steps, const int32_t ideal_width,
-                     const float conf_threshold, const float mask_threshold, const int32_t image_h, const int32_t image_w, const int32_t proto_h, const int32_t proto_w,
+void cudaPostprocess(const float *d_proposals, const float *d_prototypes, int32_t *d_keep_index, int32_t *h_keep_index, float *d_proto_masks, uint8_t *d_final_masks, uint8_t *h_final_masks, const int32_t final_steps, const int32_t ideal_width,
+                     const float iou_threshold, const float conf_threshold, const float mask_threshold, const int32_t image_h, const int32_t image_w, const int32_t proto_h, const int32_t proto_w,
                      const float scale_xy, const float sampling, const int32_t M, const int32_t P, const int32_t K,
                      int64_t &usage1, int64_t &usage2, int64_t &usage3) {
     // 0. 参数有效性判断
@@ -36,13 +39,17 @@ void cudaPostprocess(const float *d_proposals, const float *d_prototypes, float 
     }
     const int32_t N = proto_h * proto_w;    // 掩码原型步长, 固定为 H × W = 145920
 
+    // 0. 消除冗余预测.
+    launchNMS(d_proposals, d_keep_index, iou_threshold, conf_threshold, M);
+    cudaMemcpy(h_keep_index, d_keep_index, M * sizeof(int32_t), cudaMemcpyDeviceToHost);
+
     // 1. 重建低分辨率掩膜
     const auto t1 = std::chrono::system_clock::now();
-    launchGEMV(d_proposals, d_prototypes, d_proto_masks, conf_threshold, proto_h, proto_w, M, P, K, N);
+    launchGEMV(d_proposals, d_prototypes, d_keep_index, d_proto_masks, proto_h, proto_w, M, P, K, N);
 
     // 2. 重建高分辨率掩膜
     const auto t2 = std::chrono::system_clock::now();
-    launchScale(d_proposals, d_proto_masks, d_final_masks, final_steps, ideal_width, conf_threshold, mask_threshold, image_h, image_w, proto_h, proto_w, scale_xy, sampling, M, N);
+    launchScale(d_proposals, d_keep_index, d_proto_masks, d_final_masks, final_steps, ideal_width, mask_threshold, image_h, image_w, proto_h, proto_w, scale_xy, sampling, M, N);
 
     // 3. 拷贝输出数据到主机
     const auto t3 = std::chrono::system_clock::now();

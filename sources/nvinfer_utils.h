@@ -5,7 +5,8 @@
 #include <string>
 #include <ranges>
 
-#include "format_logger.h"
+#include "formatter.h"
+#include "segment_utils.h"
 #include "NvInferRuntime.h"
 
 
@@ -50,6 +51,10 @@ struct DimsCompare {
         return false;
     }
 };
+
+std::map<std::string, std::vector<nvinfer1::Dims>> GetDynDims(const std::string &arg, const std::string &dyn_dims);
+
+nvinfer1::Dims GetRunDims(const std::string &arg, const std::string &run_dims);
 
 inline int32_t DimsInBytes(const nvinfer1::Dims &v) {
     int32_t dim_size = 1;

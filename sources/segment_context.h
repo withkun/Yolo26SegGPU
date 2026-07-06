@@ -9,6 +9,7 @@
 #define OUTPUT1_BLOB_NAME       "output0"
 #define OUTPUT2_BLOB_NAME       "output1"
 
+#define IOU_THRESHOLD           0.75f           // 交并比阈值
 #define CONF_THRESHOLD          0.55f           // 置信度阈值
 #define MASK_THRESHOLD          0.45f           // 掩码二值化阈值
 
@@ -38,7 +39,7 @@ public:
 protected:
     void letterbox(const cv::Mat &image);
     void inference();
-    void postprocess(const cv::Mat &image, float conf_threshold, float mask_threshold);
+    void postprocess(const cv::Mat &image, float iou_threshold, float conf_threshold, float mask_threshold);
 
     void trackers(float mask_threshold);
 
@@ -88,6 +89,8 @@ private:
 
     // GPU解码相关
     float                       sampling_{0.25f};               // 原型掩码采样
+    std::vector<int32_t>        h_keep_index_;                  // 有效索引标记
+    int32_t                    *d_keep_index_{nullptr};         // 有效索引标记
     float                      *d_proto_masks_{nullptr};        // 低分辨率掩码(PROBES_N_ * PROTOS_H_ * PROTOS_W_)
     uint8_t                    *d_final_masks_{nullptr};        // 高分辨率掩码(PROBES_N_ * FINAL_STEPS)
     std::vector<uint8_t>        h_final_masks_;

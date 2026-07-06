@@ -7,13 +7,13 @@
  * @brief YOLO26低分辨率掩码生成核函数
  * @param proposals [960, 38] 包含bbox(4), score(1), class(1), coef(32)
  * @param prototypes [32, H×W] 原型基矩阵
+ * @param d_keep_index [960] 标记数组: 1为保留, 0为抑制
  * @param proto_masks [960, H×W] 输出掩码
- * @param conf_threshold 置信度阈值, 低于此值的框将被忽略
  * @param M 固定为 960, max detections / num of proposals
  * @param N 固定为 304 × 480 = 145920,
  */
-__global__ void cudaGEMV(const float *__restrict__ proposals, const float *__restrict__ prototypes, float *__restrict__ proto_masks,
-                         const float conf_threshold, const int32_t M, const int32_t N) {
+__global__ void cudaGEMV(const float *__restrict__ proposals, const float *__restrict__ prototypes, const int32_t *__restrict__ d_keep_index,
+                         float *__restrict__ proto_masks, const int32_t M, const int32_t N) {
     // 每个Block处理一个检测框
     const int32_t row = blockIdx.x;  // 行索引, 范围: [0, 960)
     if (row >= M) {
@@ -22,7 +22,7 @@ __global__ void cudaGEMV(const float *__restrict__ proposals, const float *__res
 
     // 1. 置信度过滤
     // proposals: [x1,y1,x2,y2, score, class, coef_0,coef_1,...,coef_31]
-    if (proposals[row * PROBES_W + 4] < conf_threshold) {
+    if (d_keep_index[row] != 1) {
         return;
     }
 
@@ -51,8 +51,8 @@ __global__ void cudaGEMV(const float *__restrict__ proposals, const float *__res
  * @brief YOLO26低分辨率掩码生成启动函数
  * @param d_proposals [960, 38] 格式: bbox(4), score(1), class(1), coef(32)
  * @param d_prototypes [32, H×W] 原型基矩阵
+ * @param d_keep_index [960] 标记数组: 1为保留, 0为抑制
  * @param d_proto_masks [960, H×W] 输出掩码
- * @param conf_threshold 置信度阈值, 低于此值的框将被忽略
  * @param proto_h 掩码原型高度 304
  * @param proto_w 掩码原型宽度 480
  * @param M 固定为 960, num of proposals
@@ -60,11 +60,11 @@ __global__ void cudaGEMV(const float *__restrict__ proposals, const float *__res
  * @param K 固定为 32, len of coefficient
  * @param N 固定为 H * W = 145920,
  */
-void launchGEMV(const float *d_proposals, const float *d_prototypes, float *d_proto_masks, const float conf_threshold,
+void launchGEMV(const float *d_proposals, const float *d_prototypes, const int32_t *d_keep_index, float *d_proto_masks,
                 const int32_t proto_h, const int32_t proto_w, const int32_t M, const int32_t P, const int32_t K, const int32_t N) {
     dim3 blockDim(512, 1, 1);     // 单块并行线程
     dim3 gridSize(M, 1, 1);       // 960个数据块
-    cudaGEMV<<<gridSize, blockDim, 0>>>(d_proposals, d_prototypes, d_proto_masks, conf_threshold, M, N);
+    cudaGEMV<<<gridSize, blockDim, 0>>>(d_proposals, d_prototypes, d_keep_index, d_proto_masks, M, N);
 
     // 同步并获取结果
     cudaDeviceSynchronize();

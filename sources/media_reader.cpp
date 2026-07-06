@@ -1,13 +1,16 @@
 #include "media_reader.h"
 #include "segment_utils.h"
+#include "string_utils.h"
+
+#include <filesystem>
 
 
 // 递归展开通配符路径, 返回所有匹配文件
-std::vector<std::string> expandGlob(const std::string &pattern) {
+std::vector<std::string> expandGlob(const std::string &root_pattern) {
     std::vector<std::string> all_files;
     {
         std::string file_item;
-        std::stringstream ss(pattern);
+        std::stringstream ss(root_pattern);
         while (std::getline(ss, file_item, ';')) {
             file_item = trim(file_item);
             if (file_item.empty()) continue;

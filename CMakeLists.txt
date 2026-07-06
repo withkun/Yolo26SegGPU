@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 4.2)
 project(Yolo26SegGPU LANGUAGES C CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -25,25 +25,24 @@ set(CMAKE_CUDA_ARCHITECTURES 86)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 20)
 
-set(TENSOR_RT_ROOT d:/3rd_party/TensorRT-11.0.0.114)
+set(TENSOR_RT_ROOT d:/3rd_party/TensorRT-11.1.0.106)
 
 set(OpenCV_DIR d:/3rd_party/opencv_5.0.0)
 include(${OpenCV_DIR}/OpenCVConfig.cmake)
 
 
 ################################################################################
-add_subdirectory(deps/gflags-2.3.0)
 add_subdirectory(deps/spdlog-1.17.0)
 add_subdirectory(kernel_segment)
 
 set(deps_libraries
-    gflags spdlog::spdlog_header_only kernel_segment
+    spdlog::spdlog_header_only kernel_segment
 )
 
 
 ################################################################################
 add_executable(${PROJECT_NAME}
-    sources/format_logger.h
+    sources/formatter.h
     sources/media_reader.h
     sources/media_reader.cpp
     sources/nvinfer_utils.h
@@ -54,6 +53,8 @@ add_executable(${PROJECT_NAME}
     sources/segment_context.cpp
     sources/segment_engine.h
     sources/segment_engine.cpp
+    sources/string_utils.h
+    sources/string_utils.cpp
 
     main.cpp
     application.rc
@@ -102,8 +103,4 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build-relwithdebinfo"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build-relwithdebinfo"
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build-relwithdebinfo"
-)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    OUTPUT_NAME ${PROJECT_NAME}
 )
