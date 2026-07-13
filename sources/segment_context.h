@@ -19,7 +19,7 @@
 class SegmentContext {
 public:
     SegmentContext() = default;
-    SegmentContext(nvinfer1::ICudaEngine *engine, const nvinfer1::Dims &dims);
+    SegmentContext(nvinfer1::ICudaEngine *engine);
     ~SegmentContext();
 
     // 禁止拷贝
@@ -30,14 +30,14 @@ public:
     SegmentContext(SegmentContext &&rsh) noexcept;
     SegmentContext &operator=(SegmentContext &&rsh) noexcept;
 
-    void create_context(nvinfer1::ICudaEngine *engine, const nvinfer1::Dims &dims);
+    void create_context(nvinfer1::ICudaEngine *engine);
     void destroy_context();
 
-    DetectResults RunSync(const cv::Mat &image);
+    SegmentResults RunSync(const cv::Mat &image);
 
 
 protected:
-    void letterbox(const cv::Mat &image);
+    void letterbox(const cv::Mat &image, int32_t &round_h, int32_t &round_w);
     void inference();
     void postprocess(const cv::Mat &image, float iou_threshold, float conf_threshold, float mask_threshold);
 
@@ -50,36 +50,47 @@ private:
     cudaStream_t                stream_{nullptr};
     std::unique_ptr<nvinfer1::IExecutionContext> context_{nullptr};
 
-    nvinfer1::Dims              input_dims_{};                  // nvinfer1::Dims{nbDims=4, d={1, 1, 1024, 1024, 0, 0, 0, 0}}
-    nvinfer1::Dims              probe_dims_{};                  // nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}}
-    nvinfer1::Dims              proto_dims_{};                  // nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}}
-
     float                      *d_image_{nullptr};
     float                      *d_proposals_{nullptr};
     float                      *d_prototypes_{nullptr};
     cv::Mat                     h_image_;
     std::vector<float>          h_proposals_;
     std::vector<float>          h_prototypes_;
-    std::vector<DetectResult>   results_;
+    std::vector<SegmentResult>  results_;
 
-    // Input Tensor:            nvinfer1::Dims{nbDims=4, d={1, 1, 1024, 1024, 0, 0, 0, 0}}
-    int32_t                     INPUT_N_{1};
-    int32_t                     INPUT_C_{1};
-    int32_t                     INPUT_H_{1024};
-    int32_t                     INPUT_W_{1024};
-    // Proposals Tensor:        nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}}
-    int32_t                     PROBE_N_{1};
-    int32_t                     PROBE_H_{960};
-    int32_t                     PROBE_W_{38};
-    // Prototypes Tensor:       nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}}
-    int32_t                     PROTO_N_{1};
-    int32_t                     PROTO_C_{32};
-    int32_t                     PROTO_H_{256};
-    int32_t                     PROTO_W_{256};
+    // Max Image Tensor:        nvinfer1::Dims{nbDims=4, d={1, 1, 1024, 1024, 0, 0, 0, 0}}
+    int32_t                     MAX_IMAGE_N_{1};
+    int32_t                     MAX_IMAGE_C_{1};
+    int32_t                     MAX_IMAGE_H_{1024};
+    int32_t                     MAX_IMAGE_W_{1024};
+    // Max Proposals Tensor:    nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}}
+    int32_t                     MAX_PROPO_N_{1};
+    int32_t                     MAX_PROPO_H_{960};
+    int32_t                     MAX_PROPO_W_{38};
+    // Max Prototypes Tensor:   nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}}
+    int32_t                     MAX_PROTO_N_{1};
+    int32_t                     MAX_PROTO_C_{32};
+    int32_t                     MAX_PROTO_H_{256};
+    int32_t                     MAX_PROTO_W_{256};
 
-    int32_t                     INPUT_SIZE_{INPUT_N_ * INPUT_C_ * INPUT_H_ * INPUT_W_};
-    int32_t                     PROBE_SIZE_{PROBE_N_ * PROBE_H_ * PROBE_W_};
-    int32_t                     PROTO_SIZE_{PROTO_N_ * PROTO_C_ * PROTO_H_ * PROTO_W_};
+    int32_t                     MAX_IMAGE_SIZE_{MAX_IMAGE_N_ * MAX_IMAGE_C_ * MAX_IMAGE_H_ * MAX_IMAGE_W_};
+    int32_t                     MAX_PROPO_SIZE_{MAX_PROPO_N_ * MAX_PROPO_H_ * MAX_PROPO_W_};
+    int32_t                     MAX_PROTO_SIZE_{MAX_PROTO_N_ * MAX_PROTO_C_ * MAX_PROTO_H_ * MAX_PROTO_W_};
+
+    // Run Image Tensor:        nvinfer1::Dims{nbDims=4, d={1, 1, 1024, 1024, 0, 0, 0, 0}}
+    int32_t                     IMAGE_N_{0};         // 1
+    int32_t                     IMAGE_C_{0};         // 1
+    int32_t                     IMAGE_H_{0};         // 800
+    int32_t                     IMAGE_W_{0};         // 1536
+    // Run Proposals Tensor:    nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}}
+    int32_t                     PROPO_N_{0};         // 1
+    int32_t                     PROPO_H_{0};         // 960
+    int32_t                     PROPO_W_{0};         // 38
+    // Run Prototypes Tensor:   nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}}
+    int32_t                     PROTO_N_{0};         // 1
+    int32_t                     PROTO_C_{0};         // 32
+    int32_t                     PROTO_H_{0};         // 200
+    int32_t                     PROTO_W_{0};         // 384
 
     int32_t                     image_h_{0};
     int32_t                     image_w_{0};
@@ -94,7 +105,7 @@ private:
     float                      *d_proto_masks_{nullptr};        // 低分辨率掩码(PROBES_N_ * PROTOS_H_ * PROTOS_W_)
     uint8_t                    *d_final_masks_{nullptr};        // 高分辨率掩码(PROBES_N_ * FINAL_STEPS)
     std::vector<uint8_t>        h_final_masks_;
-    int32_t                     final_steps_{PROTO_H_ * PROTO_W_};
+    int32_t                     final_steps_{MAX_PROTO_H_ * MAX_PROTO_W_};
     int32_t                     ideal_width_{};
 };
 #endif //__INC_SEGMENT_CONTEXT_H

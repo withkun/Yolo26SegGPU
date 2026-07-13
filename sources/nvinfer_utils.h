@@ -6,7 +6,6 @@
 #include <ranges>
 
 #include "formatter.h"
-#include "segment_utils.h"
 #include "NvInferRuntime.h"
 
 

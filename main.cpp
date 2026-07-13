@@ -18,7 +18,6 @@
 const std::string args{
     "{model_yolo    | best.onnx         | model file format of onnx or engine                       }"
     "{input_dims    |                   | dynamic image dimensions as NCHW(image:1,1,960,1280;1,1,1216,1920;1,1,1216,1920)}"
-    "{image_dims    |                   | current image dimensions as NCHW(image:1,1,1216,1920)     }"
     "{input_file    | images/*.png      | input image file name or pattern                          }"
     "{output_dir    | results/          | result output directory                                   }"
     "{console       | true              | show log console                                          }"
@@ -60,9 +59,9 @@ int main(int argc, char **argv) {
     // YoloSegTRT.exe "C:/WORK/YoloSegTRT/yolo11n-seg.onnx" "C:/WORK/YoloSegTRT/dog.jpg"
     // YoloSegTRT.exe "C:/WORK/YoloSegTRT/yolov8n-seg.engine" "C:/WORK/YoloSegTRT/test3.mp4"
     cv::CommandLineParser parser(argc, argv, args);
-    const auto model_yolo = parser.get<std::string>("model_yolo");
-    const auto input_file = parser.get<std::string>("input_file");
-    const auto output_dir = parser.get<std::string>("output_dir");
+    const std::string model_yolo(parser.get<std::string>("model_yolo"));
+    const std::string input_file(parser.get<std::string>("input_file"));
+    const std::string output_dir(parser.get<std::string>("output_dir"));
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_WARNING);
     slogInit(parser.get<bool>("console"));
     SPDLOG_INFO("TensorRT YOLO26🚀实例分割: {}: {}", model_yolo, input_file);
@@ -77,23 +76,13 @@ int main(int argc, char **argv) {
 
     // YOLO模型支持一个动态输入: images
     const auto input_dims = GetDynDims("input_dims", parser.get<std::string>("input_dims"));
-    const auto image_dims = GetRunDims("image_dims", parser.get<std::string>("image_dims"));
 
     SegmentEngine segmentation;
     if (!segmentation.get_engine(model_yolo, input_dims)) {
         parser.printMessage();
         return -1;
     }
-
-    std::set<nvinfer1::Dims, DimsCompare> all_dims;
-    for (const auto &dims : input_dims | std::views::values) {
-        for (const auto &dim : dims) {
-            if (!all_dims.contains(dim)) {
-                segmentation.create_context(dim);
-                all_dims.insert(dim);
-            }
-        }
-    }
+    segmentation.create_context();
 
     cv::namedWindow("YOLO26+TensorRT", cv::WINDOW_FREERATIO | cv::WINDOW_GUI_EXPANDED);
 
@@ -101,14 +90,14 @@ int main(int argc, char **argv) {
     const auto image_w = media_reader.width();
     const auto image_h = media_reader.height();
     SPDLOG_INFO("===> TensorRT image_sz: {}×{}, count: {}", image_h, image_w, frame_n);
-    cv::VideoWriter output("output.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 24, cv::Size2d(image_w, image_h));
-    cv::VideoWriter writer("writer.mp4", cv::VideoWriter::fourcc('H', '2', '6', '4'), 24, cv::Size2d(image_w, image_h));
+    cv::VideoWriter output("output.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 24, cv::Size2d(image_w, image_h), true);  // 三通道
+    cv::VideoWriter writer("writer.avi", cv::VideoWriter::fourcc('H', '2', '6', '4'), 24, cv::Size2d(image_w, image_h), false); // 单通道
 
     int64_t total_ms = 0;
     for (auto frame : media_reader.frames()) {
         const auto time1 = std::chrono::system_clock::now();
 
-        DetectResults results = segmentation.RunSync(image_dims, frame.image);
+        SegmentResults results = segmentation.RunSync(frame.image);
         if (image_w != frame.image.cols || image_h != frame.image.rows) {
             cv::Mat resized;
             cv::resize(frame.image, resized, cv::Size(image_w, image_h));
@@ -123,7 +112,7 @@ int main(int argc, char **argv) {
         total_ms +=  std::chrono::duration_cast<std::chrono::milliseconds>(time2 - time1).count();
         SPDLOG_INFO("TensorRT instance segmentation: {}μs, instances: {}", std::chrono::duration_cast<std::chrono::microseconds>(time2 - time1).count(), results.size());
         cv::putText(frame.image, std::format("Frame: {:d}/{:d} fps: {:d} detect: {:d}", frame.index+1, media_reader.count(), (frame.index+1) * 1000 / total_ms, results.size()),
-                    cv::Point(0, 30), 0, 0.6, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
+                    cv::Point(0, 30), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 1, cv::LINE_AA);
 
         cv::imshow("YOLO26+TensorRT", frame.image);
 

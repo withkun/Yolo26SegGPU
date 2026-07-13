@@ -14,9 +14,9 @@ public:
     SegmentEngine &operator=(const SegmentEngine &) = delete;
 
     bool                        get_engine(const std::string &model_file, const std::map<std::string, std::vector<nvinfer1::Dims>> &dimensions);
-    void                        create_context(const nvinfer1::Dims &dims);
+    void                        create_context();
 
-    DetectResults               RunSync(const nvinfer1::Dims &kDims, const cv::Mat &image);
+    SegmentResults              RunSync(const cv::Mat &image);
 
 protected:
     bool load_network_onnx(const std::string &model_file, const std::map<std::string, std::vector<nvinfer1::Dims>> &dimensions);
@@ -26,7 +26,7 @@ protected:
 private:
     std::unique_ptr<nvinfer1::IRuntime>     runtime_{nullptr};
     std::unique_ptr<nvinfer1::ICudaEngine>  engine_{nullptr};
-    std::map<nvinfer1::Dims, SegmentContext, DimsCompare>    contexts_;
+    std::vector<SegmentContext>             contexts_;
 
     const int32_t               input_index_{0};
     const int32_t               probe_index_{1};

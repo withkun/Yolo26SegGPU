@@ -22,8 +22,8 @@ std::vector<cv::Scalar> label_colormap() {
     return colormap;
 }
 
-void DrawPred(cv::Mat &image, const std::vector<DetectResult> &results, int32_t index) {
-    const double fontScale = 0.5;
+void DrawPred(cv::Mat &image, const std::vector<SegmentResult> &results, int32_t index) {
+    const float fontScale = 0.5f;
     const int32_t thickness = 1;
     const int32_t fontFace = cv::FONT_HERSHEY_COMPLEX;
     const int32_t lineType = cv::LINE_AA;
@@ -55,7 +55,7 @@ void DrawPred(cv::Mat &image, const std::vector<DetectResult> &results, int32_t 
         cv::putText(image, text, point, fontFace, fontScale, color, thickness, lineType);
         if (id > 0) {
             const std::string info = std::format("{}", id);
-            cv::putText(image, info, center, fontFace, fontScale, red, thickness, lineType);
+            cv::putText(image, info, cv::Point(bbox.x, bbox.y+textSize.height), fontFace, fontScale, red, thickness, lineType);
         }
     }
 

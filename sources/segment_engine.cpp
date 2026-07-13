@@ -84,14 +84,6 @@ bool SegmentEngine::load_network_onnx(const std::string &model_file, const std::
         profile->setDimensions(name.data(), nvinfer1::OptProfileSelector::kMAX, kDims[2]);    // 最大尺寸
         config->addOptimizationProfile(profile);
     }
-    //const nvinfer1::Dims kMin = {4, 1, 1, 960, 1280};
-    //const nvinfer1::Dims kOpt = {4, 1, 1, 1216, 1920};
-    //const nvinfer1::Dims kMax = {4, 1, 1, 1216, 1920};
-    //auto *const profile = builder->createOptimizationProfile();
-    //profile->setDimensions("images", nvinfer1::OptProfileSelector::kMIN, kMin);    // 最小尺寸
-    //profile->setDimensions("images", nvinfer1::OptProfileSelector::kOPT, kOpt);    // 最优尺寸
-    //profile->setDimensions("images", nvinfer1::OptProfileSelector::kMAX, kMax);    // 最大尺寸
-    //config->addOptimizationProfile(profile);
 
     const auto stage3 = std::chrono::system_clock::now();
     SPDLOG_INFO("TensorRT model optimize success, usage: {}μs", std::chrono::duration_cast<std::chrono::microseconds>(stage3 - stage2).count());
@@ -99,6 +91,7 @@ bool SegmentEngine::load_network_onnx(const std::string &model_file, const std::
     //设置IBuilderConfig属性后, 就可以启动优化引擎对模型进行优化了, 这个过程需要一定的时间, 在嵌入式平台上可能会比较久一点.
     //经过优化后的序列化模型被保存到IHostMemory对象中, 可以将其保存到磁盘, 下次使用时直接加载这个经过优化的模型即可, 这样可以省去等待模型优化的过程.
     SPDLOG_INFO("TensorRT Building an engine from file {}; this may take a while...", model_file);
+    //engine_ = builder->buildEngineWithConfig(*network, *config);
     const auto *serialized_model = builder->buildSerializedNetwork(*network, *config);
     engine_ = std::unique_ptr<nvinfer1::ICudaEngine>(runtime_->deserializeCudaEngine(serialized_model->data(), serialized_model->size()));
     const auto stage4 = std::chrono::system_clock::now();
@@ -186,17 +179,16 @@ void SegmentEngine::get_model_dimensions() {
     SPDLOG_INFO("TensorRT Prepare data success, usage: {}μs", std::chrono::duration_cast<std::chrono::microseconds>(stage2 - stage1).count());
 }
 
-void SegmentEngine::create_context(const nvinfer1::Dims &dims) {
-    //SegmentContext ctx(engine_, dims);
-    //ctx.create_context(engine_, dims);
-    contexts_[dims] = std::move(SegmentContext(engine_.get(), dims));
+void SegmentEngine::create_context() {
+    //SegmentContext ctx(engine_);
+    //ctx.create_context(engine_);
+    contexts_.emplace_back(std::move(SegmentContext(engine_.get())));
 }
 
-DetectResults SegmentEngine::RunSync(const nvinfer1::Dims &kDims, const cv::Mat &image) {
-    const auto it = contexts_.find(kDims);
-    if (it == contexts_.end()) {
+SegmentResults SegmentEngine::RunSync(const cv::Mat &image) {
+    if (contexts_.empty()) {
         return {};
     }
 
-    return it->second.RunSync(image);
+    return contexts_[0].RunSync(image);
 }

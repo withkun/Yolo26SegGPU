@@ -12,7 +12,7 @@ std::vector<std::string> expandGlob(const std::string &root_pattern);
 struct FrameData {
     cv::Mat     image;      // 图像数据 (BGR格式)
     size_t      index;      // 帧索引或图片序号
-    std::string source;    // 来源路径 (视频文件名或图片文件名)
+    std::string source;     // 来源路径 (视频文件名或图片文件名)
 
     // 构造函数方便初始化
     FrameData(cv::Mat img, std::string src, size_t idx)
@@ -37,7 +37,7 @@ private:
     cv::VideoCapture            capture_;
     cv::Mat                     image_;
 
-    std::generator<FrameData> read_video_file();
-    std::generator<FrameData> read_image_list();
+    std::generator<FrameData>   read_video_file();
+    std::generator<FrameData>   read_image_list();
 };
 #endif //__INC_MEDIA_READER_H
