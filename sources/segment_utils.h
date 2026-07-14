@@ -5,7 +5,7 @@
 #include <ranges>
 
 
-#define ROUND_UP(N, X)      int32_t((N + X - 1) / X) * X
+#define ROUND_UP(N, X)          int32_t((N + X - 1) / X) * X
 
 #define P_SWAP(A, B) do { \
     auto *T = A; A = B; B = T; \
@@ -30,11 +30,5 @@ using SegmentResults = std::vector<SegmentResult>;
 
 void DrawPred(cv::Mat &image, const std::vector<SegmentResult> &results, int32_t index = 0);
 
-
-#define SPDLOG_INFO_FUNC(func_name, ...)    \
-    (spdlog::default_logger_raw())->log(spdlog::source_loc{__FILE__, __LINE__, func_name}, spdlog::level::info, __VA_ARGS__)
-
-#define SPDLOG_ERROR_FUNC(func_name, ...)    \
-    (spdlog::default_logger_raw())->log(spdlog::source_loc{__FILE__, __LINE__, func_name}, spdlog::level::err, __VA_ARGS__)
 
 #endif //__INC_SEGMENT_UTILS_H

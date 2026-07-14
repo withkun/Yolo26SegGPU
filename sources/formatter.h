@@ -5,6 +5,12 @@
 #include "opencv2/opencv.hpp"
 
 
+#define SPDLOG_INFO_FUNC(loc, ...)      \
+    (spdlog::default_logger_raw())->log(spdlog::source_loc{loc.file_name(), (int32_t)loc.line(), loc.function_name()}, spdlog::level::info, __VA_ARGS__)
+
+#define SPDLOG_ERROR_FUNC(loc, ...)     \
+    (spdlog::default_logger_raw())->log(spdlog::source_loc{loc.file_name(), (int32_t)loc.line(), loc.function_name()}, spdlog::level::err, __VA_ARGS__)
+
 namespace std {
 template<>
 struct formatter<cv::Mat> : std::formatter<std::string> {

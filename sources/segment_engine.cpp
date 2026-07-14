@@ -7,6 +7,7 @@
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
+#include <source_location>
 
 
 SegmentEngine::SegmentEngine() {
@@ -147,22 +148,21 @@ void SegmentEngine::get_model_dimensions() {
         throw std::runtime_error(std::format("TensorRT unexpect NbIOTensors: {}", nbIoTensors));
     }
 
-    const auto *caller_name = __FUNCTION__;
-    const auto fTensorShape = [&, caller_name](const int32_t TENSOR_INDEX, const char *TENSOR_NAME) {
+    const auto fTensorShape = [&](const int32_t TENSOR_INDEX, const std::string &TENSOR_NAME, const std::source_location &loc = std::source_location::current()) {
         const auto tensorName = engine_->getIOTensorName(TENSOR_INDEX);
         if (tensorName != TENSOR_NAME) {
-            SPDLOG_ERROR_FUNC(caller_name, "getIOTensorName: unexpect {} tensor name: {}", TENSOR_NAME, tensorName);
+            SPDLOG_ERROR_FUNC(loc, "getIOTensorName: unexpect {} tensor name: {}", TENSOR_NAME, tensorName);
             throw std::runtime_error(std::format("getIOTensorName: unexpect {} tensor name: {}", TENSOR_NAME, tensorName));
         }
-        const auto tensorDims = engine_->getTensorShape(TENSOR_NAME);
-        SPDLOG_INFO_FUNC(caller_name, "TensorRT {} Dimensions: {}", tensorName, tensorDims);
+        const auto tensorDims = engine_->getTensorShape(tensorName);
+        SPDLOG_INFO_FUNC(loc, "TensorRT {} Dimensions: {}", tensorName, tensorDims);
     };
 
-    // nvinfer1::Dims{nbDims=4, d={1, 3, 1280, 1920, 0, 0, 0, 0}}
+    // image: nvinfer1::Dims{nbDims=4, d={1, 3, 1280, 1920, 0, 0, 0, 0}}
     fTensorShape(input_index_, INPUT_BLOB_NAME);
-    // nvinfer1::Dims{nbDims=3, d={1, 300, 38, 0, 0, 0, 0, 0}}
+    // output1: nvinfer1::Dims{nbDims=3, d={1, 300, 38, 0, 0, 0, 0, 0}}
     fTensorShape(probe_index_, OUTPUT1_BLOB_NAME);
-    // nvinfer1::Dims{nbDims=4, d={1, 32, 320, 480, 0, 0, 0, 0}}
+    // output2: nvinfer1::Dims{nbDims=4, d={1, 32, 320, 480, 0, 0, 0, 0}}
     fTensorShape(proto_index_, OUTPUT2_BLOB_NAME);
 
     const auto stage2 = std::chrono::system_clock::now();
