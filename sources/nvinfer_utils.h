@@ -53,13 +53,11 @@ struct DimsCompare {
 
 std::map<std::string, std::vector<nvinfer1::Dims>> GetDynDims(const std::string &arg, const std::string &dyn_dims);
 
-nvinfer1::Dims GetRunDims(const std::string &arg, const std::string &run_dims);
-
 inline int32_t DimsInBytes(const nvinfer1::Dims &v) {
     int32_t dim_size = 1;
     for (int i = 0; i < v.nbDims; ++i) {
         if (v.d[i] == 0 || v.d[i] == -1) {
-            std::cerr << std::format("invalid dims for calc size: {}", v) << std::endl;
+            SPDLOG_CRITICAL(std::format("invalid dims for calc size: {}", v));
             throw std::runtime_error(std::format("invalid dims for calc size: {}", v));
         }
         dim_size *= static_cast<int32_t>(v.d[i]);

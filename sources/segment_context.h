@@ -63,19 +63,11 @@ private:
     int32_t                     MAX_IMAGE_C_{1};
     int32_t                     MAX_IMAGE_H_{1024};
     int32_t                     MAX_IMAGE_W_{1024};
-    // Max Proposals Tensor:    nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}}
-    int32_t                     MAX_PROPO_N_{1};
-    int32_t                     MAX_PROPO_H_{960};
-    int32_t                     MAX_PROPO_W_{38};
-    // Max Prototypes Tensor:   nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}}
-    int32_t                     MAX_PROTO_N_{1};
-    int32_t                     MAX_PROTO_C_{32};
-    int32_t                     MAX_PROTO_H_{256};
-    int32_t                     MAX_PROTO_W_{256};
 
-    int32_t                     MAX_IMAGE_SIZE_{MAX_IMAGE_N_ * MAX_IMAGE_C_ * MAX_IMAGE_H_ * MAX_IMAGE_W_};
-    int32_t                     MAX_PROPO_SIZE_{MAX_PROPO_N_ * MAX_PROPO_H_ * MAX_PROPO_W_};
-    int32_t                     MAX_PROTO_SIZE_{MAX_PROTO_N_ * MAX_PROTO_C_ * MAX_PROTO_H_ * MAX_PROTO_W_};
+    // Max Tensor size for Dynamic shape.
+    int32_t                     MAX_IMAGE_SIZE_{-1};
+    int32_t                     MAX_PROPO_SIZE_{-1};
+    int32_t                     MAX_PROTO_SIZE_{-1};
 
     // Run Image Tensor:        nvinfer1::Dims{nbDims=4, d={1, 1, 1024, 1024, 0, 0, 0, 0}}
     int32_t                     IMAGE_N_{0};         // 1
@@ -105,7 +97,7 @@ private:
     float                      *d_proto_masks_{nullptr};        // 低分辨率掩码(PROBES_N_ * PROTOS_H_ * PROTOS_W_)
     uint8_t                    *d_final_masks_{nullptr};        // 高分辨率掩码(PROBES_N_ * FINAL_STEPS)
     std::vector<uint8_t>        h_final_masks_;
-    int32_t                     final_steps_{MAX_PROTO_H_ * MAX_PROTO_W_};
+    int32_t                     final_steps_{-1};
     int32_t                     ideal_width_{};
 };
 #endif //__INC_SEGMENT_CONTEXT_H

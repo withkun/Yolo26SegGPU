@@ -28,7 +28,7 @@ std::map<std::string, std::vector<nvinfer1::Dims>> GetDynDims(const std::string 
         while (std::getline(ss, split_item, '#')) {          // name:NCHW;NCHW#name:NCHW;
             const auto pos = split_item.find(':');
             if (pos == std::string::npos) {
-                std::cerr << "dynamic dimensions not accept: " << dyn_dims << std::endl;
+                SPDLOG_CRITICAL(std::format("dynamic dimensions not accept: {}: {}", arg, dyn_dims));
                 throw std::invalid_argument(std::format("{}: {}", arg, dyn_dims));
             }
 
@@ -42,8 +42,8 @@ std::map<std::string, std::vector<nvinfer1::Dims>> GetDynDims(const std::string 
             }
 
             if (name.empty() || dims.size() != 3) {
-                std::cerr << "dynamic dimensions not accept: " << split_item << ": " << dims.size() << std::endl;
-                throw std::invalid_argument(std::format("{}: {}", arg, dyn_dims));
+                SPDLOG_CRITICAL(std::format("dynamic dimensions not accept: {}: {}", split_item, dims.size()));
+                throw std::invalid_argument(std::format("dynamic dimensions not accept: {}: {}", arg, dyn_dims));
             }
 
             dimensions[name] = dims;
@@ -52,24 +52,6 @@ std::map<std::string, std::vector<nvinfer1::Dims>> GetDynDims(const std::string 
 
     return dimensions;
 }
-
-nvinfer1::Dims GetRunDims(const std::string &arg, const std::string &run_dims) {
-    nvinfer1::Dims kDims{};
-    if (!run_dims.empty()) {
-        const auto pos = run_dims.find(':');
-        if (pos == std::string::npos) {
-            std::cerr << "current dimensions not accept: " << run_dims << std::endl;
-            throw std::invalid_argument(std::format("{}: {}", arg, run_dims));
-        }
-
-        std::string name = trim(run_dims.substr(0, pos));
-        kDims = fDims(run_dims.substr(pos + 1));
-        SPDLOG_INFO("accept current dimension: {}:{}", arg, kDims);
-    }
-
-    return kDims;
-}
-
 
 NvLogger &NvLogger::GetInstance() {
     static NvLogger instance_;

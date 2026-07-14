@@ -43,6 +43,7 @@ bool SegmentEngine::get_engine(const std::string &model_file, const std::map<std
     if (extension == ".engine") {
         return load_network_engine(model_file);
     }
+    SPDLOG_CRITICAL("Unknown model extension: " + extension);
     throw std::runtime_error("Unknown model extension: " + extension);
 }
 
@@ -142,38 +143,27 @@ void SegmentEngine::get_model_dimensions() {
     const auto stage1 = std::chrono::system_clock::now();
     const auto nbIoTensors = engine_->getNbIOTensors();
     if (nbIoTensors != 3) {
-        SPDLOG_ERROR("TensorRT unexpect NbIOTensors: {}", nbIoTensors);
+        SPDLOG_CRITICAL("TensorRT unexpect NbIOTensors: {}", nbIoTensors);
         throw std::runtime_error(std::format("TensorRT unexpect NbIOTensors: {}", nbIoTensors));
     }
 
-    auto const tensorName1 = engine_->getIOTensorName(input_index_);
-    if (tensorName1 != std::string(INPUT_BLOB_NAME)) {
-        SPDLOG_ERROR("getIOTensorName: unexpect input tensor name: {}", tensorName1);
-        throw std::runtime_error(std::format("getIOTensorName: unexpect input tensor name: {}", tensorName1));
-    }
-    auto const tensorName2 = engine_->getIOTensorName(probe_index_);
-    if (tensorName2 != std::string(OUTPUT1_BLOB_NAME)) {
-        SPDLOG_ERROR("getIOTensorName: unexpect output1 tensor name: {}", tensorName2);
-        throw std::runtime_error(std::format("getIOTensorName: unexpect output1 tensor name: {}", tensorName2));
-    }
-    auto const tensorName3 = engine_->getIOTensorName(proto_index_);
-    if (tensorName3 != std::string(OUTPUT2_BLOB_NAME)) {
-        SPDLOG_ERROR("getIOTensorName: unexpect output2 tensor name: {}", tensorName3);
-        throw std::runtime_error(std::format("getIOTensorName: unexpect output2 tensor name: {}", tensorName3));
-    }
+    const auto *caller_name = __FUNCTION__;
+    const auto fTensorShape = [&, caller_name](const int32_t TENSOR_INDEX, const char *TENSOR_NAME) {
+        const auto tensorName = engine_->getIOTensorName(TENSOR_INDEX);
+        if (tensorName != TENSOR_NAME) {
+            SPDLOG_ERROR_FUNC(caller_name, "getIOTensorName: unexpect {} tensor name: {}", TENSOR_NAME, tensorName);
+            throw std::runtime_error(std::format("getIOTensorName: unexpect {} tensor name: {}", TENSOR_NAME, tensorName));
+        }
+        const auto tensorDims = engine_->getTensorShape(TENSOR_NAME);
+        SPDLOG_INFO_FUNC(caller_name, "TensorRT {} Dimensions: {}", tensorName, tensorDims);
+    };
 
-    //由于模型的推理是在GPU上进行的, 所以会存在搬运输入、输出数据的操作, 因此有必要在GPU上创建内存区域用于存放输入、输出数据. 模型输入、输出的尺寸可以通过ICudaEngine对象的接口来获取, 根据这些信息我们可以先为模型分配输入、输出缓存区.
-    // 获取模型输入尺寸并分配GPU内存 (nvinfer1::Dims{nbDims=4, d={1, 3, 1280, 1920, 0, 0, 0, 0}})
-    const nvinfer1::Dims input_dims = engine_->getTensorShape(INPUT_BLOB_NAME);
-    SPDLOG_INFO("TensorRT input Dimensions: {}", input_dims);
-
-    // 获取输出尺寸并分配GPU内存 (nvinfer1::Dims{nbDims=3, d={1, 300, 38, 0, 0, 0, 0, 0}})
-    const nvinfer1::Dims output1_dims = engine_->getTensorShape(OUTPUT1_BLOB_NAME);
-    SPDLOG_INFO("TensorRT output1 Dimensions: {}", output1_dims);
-
-    // 获取输出尺寸并分配GPU内存 (nvinfer1::Dims{nbDims=4, d={1, 32, 320, 480, 0, 0, 0, 0}})
-    const nvinfer1::Dims output2_dims = engine_->getTensorShape(OUTPUT2_BLOB_NAME);
-    SPDLOG_INFO("TensorRT output2 Dimensions: {}", output2_dims);
+    // nvinfer1::Dims{nbDims=4, d={1, 3, 1280, 1920, 0, 0, 0, 0}}
+    fTensorShape(input_index_, INPUT_BLOB_NAME);
+    // nvinfer1::Dims{nbDims=3, d={1, 300, 38, 0, 0, 0, 0, 0}}
+    fTensorShape(probe_index_, OUTPUT1_BLOB_NAME);
+    // nvinfer1::Dims{nbDims=4, d={1, 32, 320, 480, 0, 0, 0, 0}}
+    fTensorShape(proto_index_, OUTPUT2_BLOB_NAME);
 
     const auto stage2 = std::chrono::system_clock::now();
     SPDLOG_INFO("TensorRT Prepare data success, usage: {}μs", std::chrono::duration_cast<std::chrono::microseconds>(stage2 - stage1).count());

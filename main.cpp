@@ -84,14 +84,13 @@ int main(int argc, char **argv) {
     }
     segmentation.create_context();
 
-    cv::namedWindow("YOLO26+TensorRT", cv::WINDOW_FREERATIO | cv::WINDOW_GUI_EXPANDED);
-
     const auto frame_n = media_reader.count();
     const auto image_w = media_reader.width();
     const auto image_h = media_reader.height();
     SPDLOG_INFO("===> TensorRT image_sz: {}×{}, count: {}", image_h, image_w, frame_n);
     cv::VideoWriter output("output.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 24, cv::Size2d(image_w, image_h), true);  // 三通道
     cv::VideoWriter writer("writer.avi", cv::VideoWriter::fourcc('H', '2', '6', '4'), 24, cv::Size2d(image_w, image_h), false); // 单通道
+    cv::namedWindow("YOLO26+TensorRT", cv::WINDOW_FREERATIO | cv::WINDOW_GUI_EXPANDED);
 
     int64_t total_ms = 0;
     for (auto frame : media_reader.frames()) {

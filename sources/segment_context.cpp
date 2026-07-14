@@ -35,15 +35,6 @@ SegmentContext &SegmentContext::operator=(SegmentContext &&rsh) noexcept {
     this->MAX_IMAGE_C_          = rsh.MAX_IMAGE_C_;
     this->MAX_IMAGE_H_          = rsh.MAX_IMAGE_H_;
     this->MAX_IMAGE_W_          = rsh.MAX_IMAGE_W_;
-    // Proposals Tensor:        nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}}
-    this->MAX_PROPO_N_          = rsh.MAX_PROPO_N_;
-    this->MAX_PROPO_H_          = rsh.MAX_PROPO_H_;
-    this->MAX_PROPO_W_          = rsh.MAX_PROPO_W_;
-    // Prototypes Tensor:       nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}}
-    this->MAX_PROTO_N_          = rsh.MAX_PROTO_N_;
-    this->MAX_PROTO_C_          = rsh.MAX_PROTO_C_;
-    this->MAX_PROTO_H_          = rsh.MAX_PROTO_H_;
-    this->MAX_PROTO_W_          = rsh.MAX_PROTO_W_;
 
     this->MAX_IMAGE_SIZE_       = rsh.MAX_IMAGE_SIZE_;
     this->MAX_PROPO_SIZE_       = rsh.MAX_PROPO_SIZE_;
@@ -94,18 +85,18 @@ void SegmentContext::create_context(nvinfer1::ICudaEngine *engine) {
 
     // 获取输出尺寸并分配GPU内存 (nvinfer1::Dims{nbDims=3, d={1, 960, 38, 0, 0, 0, 0, 0}})
     const auto propo_dims = context_->getTensorShape(OUTPUT1_BLOB_NAME);
-    MAX_PROPO_N_ = static_cast<int32_t>(propo_dims.d[0]);      // 1
-    MAX_PROPO_H_ = static_cast<int32_t>(propo_dims.d[1]);      // 960
-    MAX_PROPO_W_ = static_cast<int32_t>(propo_dims.d[2]);      // 38
+    const int32_t MAX_PROPO_N_ = static_cast<int32_t>(propo_dims.d[0]);      // 1
+    const int32_t MAX_PROPO_H_ = static_cast<int32_t>(propo_dims.d[1]);      // 960
+    const int32_t MAX_PROPO_W_ = static_cast<int32_t>(propo_dims.d[2]);      // 38
     MAX_PROPO_SIZE_ = DimsInBytes(propo_dims);
     SPDLOG_INFO("TensorRT output1 for OptProfileSelector::kMAX: {} count: {}", propo_dims, MAX_PROPO_SIZE_);
 
     // 获取输出尺寸并分配GPU内存 (nvinfer1::Dims{nbDims=4, d={1, 32, 256, 256, 0, 0, 0, 0}})
     const auto proto_dims = context_->getTensorShape(OUTPUT2_BLOB_NAME);
-    MAX_PROTO_N_ = static_cast<int32_t>(proto_dims.d[0]);      // 1
-    MAX_PROTO_C_ = static_cast<int32_t>(proto_dims.d[1]);      // 32
-    MAX_PROTO_H_ = static_cast<int32_t>(proto_dims.d[2]);      // 256
-    MAX_PROTO_W_ = static_cast<int32_t>(proto_dims.d[3]);      // 256
+    const int32_t MAX_PROTO_N_ = static_cast<int32_t>(proto_dims.d[0]);      // 1
+    const int32_t MAX_PROTO_C_ = static_cast<int32_t>(proto_dims.d[1]);      // 32
+    const int32_t MAX_PROTO_H_ = static_cast<int32_t>(proto_dims.d[2]);      // 256
+    const int32_t MAX_PROTO_W_ = static_cast<int32_t>(proto_dims.d[3]);      // 256
     MAX_PROTO_SIZE_ = DimsInBytes(proto_dims);
     SPDLOG_INFO("TensorRT output2 for OptProfileSelector::kMAX: {} count: {}", proto_dims, MAX_PROTO_SIZE_);
 
@@ -127,7 +118,7 @@ void SegmentContext::create_context(nvinfer1::ICudaEngine *engine) {
     cudaMalloc(&d_keep_index_, MAX_PROPO_H_ * sizeof(int32_t));                         // [960] 有效索引标记
     cudaMalloc(&d_proto_masks_, MAX_PROPO_H_ * MAX_PROTO_H_ * MAX_PROTO_W_ * sizeof(float));    // [960, 304*480]    534M 低分辨率掩膜, 需要单独分配
     if (d_proto_masks_ == nullptr) {
-        std::cerr << "cudaMalloc d_proto_masks is null" << std::endl;
+        SPDLOG_CRITICAL("cudaMalloc d_proto_masks is null");
         throw std::runtime_error("cudaMalloc d_proto_masks is null");
     }
 
@@ -136,7 +127,7 @@ void SegmentContext::create_context(nvinfer1::ICudaEngine *engine) {
     h_final_masks_.resize(MAX_PROPO_H_ * final_steps_);
     cudaMalloc(&d_final_masks_, MAX_PROPO_H_ * final_steps_ * sizeof(uint8_t));         // [960, 304*480]    134M 高分辨率掩膜, 可以单独分配
     if (d_final_masks_ == nullptr) {
-        std::cerr << "cudaMalloc d_final_masks is null" << std::endl;
+        SPDLOG_CRITICAL("cudaMalloc d_final_masks is null");
         throw std::runtime_error("cudaMalloc d_final_masks is null");
     }
 
@@ -225,6 +216,7 @@ SegmentResults SegmentContext::RunSync(const cv::Mat &image) {
     context_->setOptimizationProfileAsync(0, stream_);
     context_->setInputShape(INPUT_BLOB_NAME,  kDims);
     if (!context_->allInputDimensionsSpecified()) {
+        SPDLOG_CRITICAL("Not all input dimensions specified");
         throw std::runtime_error("Not all input dimensions specified");
     }
 
