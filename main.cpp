@@ -141,6 +141,6 @@ int main(int argc, char **argv) {
     cv::destroyAllWindows();
 
     // 分割引擎为局部变量, 在函数退出时释放, 释放过程中有日志输出, 此处日志不能关闭.
-    //spdlog::shutdown();
+    spdlog::shutdown();
     return 0;
 }

@@ -234,6 +234,7 @@ void SegmentContext::inference() {
 
     // 异步流提交推理任务
     if (!context_->enqueueV3(stream_)) {
+        SPDLOG_CRITICAL("CUDA enqueueV3 not success");
         throw std::runtime_error("CUDA enqueueV3 not success");
     }
 

@@ -31,7 +31,6 @@ using SegmentResults = std::vector<SegmentResult>;
 void DrawPred(cv::Mat &image, const std::vector<SegmentResult> &results, int32_t index = 0);
 
 
-
 #define SPDLOG_INFO_FUNC(func_name, ...)    \
     (spdlog::default_logger_raw())->log(spdlog::source_loc{__FILE__, __LINE__, func_name}, spdlog::level::info, __VA_ARGS__)
 
